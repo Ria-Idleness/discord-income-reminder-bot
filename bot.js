@@ -1,4 +1,4 @@
-require('dotenv').config();  // これをファイルの一番上に追加
+require('dotenv').config();
 
 const { Client, GatewayIntentBits } = require('discord.js');
 const cron = require('node-cron');
@@ -20,3 +20,14 @@ const client = new Client({
 // ...
 
 client.login(TOKEN);
+
+// 疑似WebサーバーでRenderの「ポート監視」を回避する
+const express = require('express');
+const app = express();
+
+app.get('/', (req, res) => res.send('Bot is running!'));
+
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Web server started to keep Render happy.');
+});
+
