@@ -6,7 +6,6 @@ const express = require('express');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
-const CLAN_ROLE_ID = '1365109317363044432'; // ← @Clan member ロールID
 
 if (!TOKEN || !CHANNEL_ID) {
   console.error('ERROR: DISCORD_TOKENとCHANNEL_IDを環境変数に設定してください');
@@ -23,8 +22,31 @@ const client = new Client({
 
 let reminderActive = false;
 
-client.once('ready', () => {
-  console.log(`Logged in as ${client.user.tag}`);
+// リマインダーメッセージを送信する関数
+async function sendReminder() {
+  if (!reminderActive) return;
+
+  // 月曜17時〜火曜17時は送信しない
+  const now = new Date();
+  const day = now.getDay(); // 0=日曜,1=月曜,...6=土曜
+  const hour = now.getHours();
+
+  // 月曜17時以降かつ火曜17時未満を除外
+  if (
+    (day === 1 && hour >= 17) ||
+    (day === 2 && hour < 17)
+  ) {
+    return;
+  }
+
+  const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
+  if (!channel) return;
+
+  await channel.send('<@&1365109317363044432> @Clan member Collect income !\n収入を回収してください！');
+}
+
+client.on('ready', () => {
+  console.log(`Logged in as ${client.user.tag}!`);
 });
 
 // メッセージ受信イベント
@@ -43,47 +65,21 @@ client.on('messageCreate', async (message) => {
   } else if (content === '!income status') {
     await message.reply(`収入リマインダーは現在 **${reminderActive ? 'オン' : 'オフ'}** です。`);
   } else if (content === '!income test') {
-    sendReminder();
-    await message.reply('テスト送信しました！');
+    sendReminder(); // リマインダー送信（返信はなし）
   }
 });
 
-// リマインダー送信関数
-async function sendReminder() {
-  if (!reminderActive) return;
-
-  const now = new Date();
-  const day = now.getDay(); // 0=日, 1=月, ..., 6=土
-  const hour = now.getHours();
-
-  // 月曜17:00～火曜16:59は通知しない
-  if ((day === 1 && hour >= 17) || (day === 2 && hour < 17)) {
-    console.log('スキップ：収入通知停止時間内');
-    return;
-  }
-
-  const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
-  if (!channel) return;
-
-  channel.send({
-    content: `<@&${CLAN_ROLE_ID}>\n収入を回収してください！`,
-    allowedMentions: { roles: [CLAN_ROLE_ID] }
-  });
-}
-
-// 通知スケジュール
+// 指定時間帯に通知を送るcronスケジュール
 const times = ['50 0 * * *', '50 4 * * *', '50 8 * * *', '50 12 * * *', '50 16 * * *', '50 20 * * *'];
-times.forEach(schedule => {
-  cron.schedule(schedule, () => {
-    console.log(`リマインダー実行: ${schedule}`);
+times.forEach((time) => {
+  cron.schedule(time, () => {
     sendReminder();
   });
 });
 
-// Botログイン
 client.login(TOKEN);
 
-// Render対策：簡易Webサーバー
+// Webサーバー（Renderのポート監視用）
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 app.listen(process.env.PORT || 3000, () => {
