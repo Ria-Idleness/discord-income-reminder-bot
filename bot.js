@@ -28,7 +28,6 @@ client.on('ready', () => {
 
 // メッセージ受信イベント
 client.on('messageCreate', async (message) => {
-  // ボット自身や別チャンネルは無視
   if (message.author.bot) return;
   if (message.channel.id !== CHANNEL_ID) return;
 
@@ -42,20 +41,40 @@ client.on('messageCreate', async (message) => {
     await message.reply('収入リマインダーをオフにしました！');
   } else if (content === '!income status') {
     await message.reply(`収入リマインダーは現在 **${reminderActive ? 'オン' : 'オフ'}** です。`);
+  } else if (content === '!income test') {
+    await sendReminder(true);  // テストモードですぐ送信
   }
 });
 
-// 定期タスク（例：毎日9時にメッセージ送信）
-cron.schedule('0 9 * * *', async () => {
-  if (!reminderActive) return;
+// リマインダー送信関数（本番/テスト兼用）
+async function sendReminder(force = false) {
+  if (!reminderActive && !force) return;
+
+  const now = new Date();
+  const day = now.getDay(); // 0:日曜, 1:月曜, ..., 6:土曜
+  const hour = now.getHours();
+
+  // 通常運用時のみ制限（force = true の場合は無視）
+  if (!force && ((day === 1 && hour >= 17) || (day === 2 && hour < 17))) {
+    return;
+  }
+
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
   if (!channel) return;
-  channel.send('おはようございます！今日の収入リマインダーです。');
+
+  channel.send('@Clan member Collect income !\n収入を回収してください！');
+}
+
+// 指定時間に定期送信（cron形式: 分 時 * * *）
+const times = ['50 0', '50 4', '50 8', '50 12', '50 16', '50 20'];
+times.forEach(time => {
+  cron.schedule(`${time} * * *`, () => sendReminder());
 });
 
+// Discordにログイン
 client.login(TOKEN);
 
-// Webサーバー（Renderのポート監視用）
+// Webサーバー（Render用）
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 app.listen(process.env.PORT || 3000, () => {
