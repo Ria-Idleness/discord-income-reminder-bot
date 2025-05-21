@@ -40,21 +40,12 @@ client.on('messageCreate', async (message) => {
   } else if (content === '!income status') {
     await message.reply(`収入リマインダーは現在 **${reminderActive ? 'オン' : 'オフ'}** です。`);
   } else if (content === '!income test') {
-    await sendReminder(true);
+    await sendReminder(true); // 強制送信
   }
 });
 
 async function sendReminder(force = false) {
   if (!reminderActive && !force) return;
-
-  const now = new Date();
-  const day = now.getDay();     // 0:日, 1:月, 2:火, ...
-  const hour = now.getHours();
-
-  // 月曜17時〜火曜16時59分までは通知しない（force時は例外）
-  if (!force && ((day === 1 && hour >= 17) || (day === 2 && hour < 17))) {
-    return;
-  }
 
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
   if (!channel) return;
@@ -62,16 +53,22 @@ async function sendReminder(force = false) {
   channel.send('<@&1365109317363044432> Collect income !\n収入を回収してください！');
 }
 
-// 指定時間（毎日）に定期通知
-const times = ['50 0', '50 4', '50 8', '50 12', '50 16', '50 20'];
-times.forEach(time => {
-  cron.schedule(`${time} * * *`, () => sendReminder());
+// cron形式: '分 時 日 月 曜日'
+
+// 火曜日以外: 0:50, 4:50, 8:50, 12:50, 16:50 → cronで火曜 (2) 除外
+const timesExceptTuesday = ['50 0 * * 0,1,3,4,5,6', '50 4 * * 0,1,3,4,5,6', '50 8 * * 0,1,3,4,5,6', '50 12 * * 0,1,3,4,5,6', '50 16 * * 0,1,3,4,5,6'];
+
+// 月曜日以外: 20:50 → cronで月曜 (1) 除外
+const timeExceptMonday = ['50 20 * * 0,2,3,4,5,6'];
+
+// 登録
+[...timesExceptTuesday, ...timeExceptMonday].forEach(schedule => {
+  cron.schedule(schedule, () => sendReminder());
 });
 
-// Discordにログイン
 client.login(TOKEN);
 
-// Render 用 Web サーバー
+// Webサーバー（Render用）
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 app.listen(process.env.PORT || 3000, () => {
