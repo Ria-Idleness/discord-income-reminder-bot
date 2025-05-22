@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const { Client, GatewayIntentBits } = require('discord.js');
 const cron = require('node-cron');
 const express = require('express');
@@ -40,12 +41,25 @@ client.on('messageCreate', async (message) => {
   } else if (content === '!income status') {
     await message.reply(`収入リマインダーは現在 **${reminderActive ? 'オン' : 'オフ'}** です。`);
   } else if (content === '!income test') {
-    await sendReminder(true); // 強制送信
+    await sendReminder(true); // 強制送信（テスト用）
   }
 });
 
 async function sendReminder(force = false) {
   if (!reminderActive && !force) return;
+
+  const now = new Date();
+  const day = now.getDay(); // 0:日曜, 1:月曜, ..., 6:土曜
+  const hour = now.getHours();
+
+  // 通常送信時（月曜19:50 / 火曜全体は送信禁止）
+  if (!force) {
+    const isBlocked =
+      (day === 1 && hour >= 16) ||  // 月曜 16:00 以降 →ブロック（19:50含む）
+      (day === 2);                 // 火曜全体 →ブロック
+
+    if (isBlocked) return;
+  }
 
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
   if (!channel) return;
@@ -53,22 +67,26 @@ async function sendReminder(force = false) {
   channel.send('<@&1365109317363044432> Collect income !\n収入を回収してください！');
 }
 
-// cron形式: '分 時 日 月 曜日'
-
-// 火曜日以外: 0:50, 4:50, 8:50, 12:50, 16:50 → cronで火曜 (2) 除外
-const timesExceptTuesday = ['50 0 * * 0,1,3,4,5,6', '50 4 * * 0,1,3,4,5,6', '50 8 * * 0,1,3,4,5,6', '50 12 * * 0,1,3,4,5,6', '50 16 * * 0,1,3,4,5,6'];
-
-// 月曜日以外: 20:50 → cronで月曜 (1) 除外
-const timeExceptMonday = ['50 20 * * 0,2,3,4,5,6'];
-
-// 登録
-[...timesExceptTuesday, ...timeExceptMonday].forEach(schedule => {
-  cron.schedule(schedule, () => sendReminder());
+// スケジュール設定（cron形式：分 時 * * *）
+// 火曜以外
+const nonTuesdayTimes = ['50 23', '50 3', '50 7', '50 11', '50 15'];
+nonTuesdayTimes.forEach(time => {
+  cron.schedule(`${time} * * *`, () => {
+    const day = new Date().getDay();
+    if (day !== 2) sendReminder();
+  });
 });
 
+// 月曜以外
+cron.schedule('50 19 * * *', () => {
+  const day = new Date().getDay();
+  if (day !== 1) sendReminder();
+});
+
+// Discordログイン
 client.login(TOKEN);
 
-// Webサーバー（Render用）
+// Renderのポート監視用サーバー
 const app = express();
 app.get('/', (req, res) => res.send('Bot is running!'));
 app.listen(process.env.PORT || 3000, () => {
