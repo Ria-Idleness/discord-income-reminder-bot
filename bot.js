@@ -6,6 +6,7 @@ const express = require('express');
 
 const TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
+const MENTION_ROLE_ID = '1399374765243891722'; // ← 新しいロールID
 
 if (!TOKEN || !CHANNEL_ID) {
   console.error('ERROR: DISCORD_TOKENとCHANNEL_IDを環境変数に設定してください');
@@ -48,39 +49,25 @@ client.on('messageCreate', async (message) => {
 async function sendReminder(force = false) {
   if (!reminderActive && !force) return;
 
-  const now = new Date();
-  const day = now.getDay(); // 0:日曜, 1:月曜, ..., 6:土曜
-  const hour = now.getHours();
-
-  // 通常送信時（月曜19:50 / 火曜全体は送信禁止）
-  if (!force) {
-    const isBlocked =
-      (day === 1 && hour >= 16) ||  // 月曜 16:00 以降 →ブロック（19:50含む）
-      (day === 2);                 // 火曜全体 →ブロック
-
-    if (isBlocked) return;
-  }
-
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
   if (!channel) return;
 
-  channel.send('<@&1365109317363044432> Collect income !\n収入を回収してください！');
+  channel.send(`<@&${MENTION_ROLE_ID}> Collect income !\n収入を回収してください！`);
 }
 
-// スケジュール設定（cron形式：分 時 * * *）
-// 火曜以外
-const nonTuesdayTimes = ['50 23', '50 3', '50 7', '50 11', '50 15'];
+// 通知時間のスケジュール（cron形式：分 時 * * *）
+const nonTuesdayTimes = ['50 23', '50 3', '50 7', '50 11', '50 15']; // 火曜以外
 nonTuesdayTimes.forEach(time => {
   cron.schedule(`${time} * * *`, () => {
     const day = new Date().getDay();
-    if (day !== 2) sendReminder();
+    if (day !== 2) sendReminder(); // 火曜以外に実行
   });
 });
 
-// 月曜以外
+// 月曜以外の 19:50（20:50→19:50に変更済み）
 cron.schedule('50 19 * * *', () => {
   const day = new Date().getDay();
-  if (day !== 1) sendReminder();
+  if (day !== 1) sendReminder(); // 月曜以外に実行
 });
 
 // Discordログイン
