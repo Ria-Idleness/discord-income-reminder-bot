@@ -26,9 +26,29 @@ const client = new Client({
 let reminderActive = false;
 
 client.on('ready', () => {
-  console.log(`Logged in as ${client.user.tag}!`);
-  console.log(`現在のタイムゾーン: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
-  console.log(`現在の日本時間: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
+  console.log(`✅ Logged in as ${client.user.tag}!`);
+  console.log(`📍 現在のタイムゾーン: ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
+  console.log(`🕒 現在の日本時間: ${new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })}`);
+  console.log(`🤖 BOT ID: ${client.user.id}`);
+  console.log(`🔧 BOT状態: オンライン`);
+});
+
+// エラーハンドリングを追加
+client.on('error', error => {
+  console.error('❌ Discord client error:', error);
+});
+
+client.on('warn', warn => {
+  console.warn('⚠️ Discord client warning:', warn);
+});
+
+process.on('unhandledRejection', error => {
+  console.error('❌ Unhandled promise rejection:', error);
+});
+
+process.on('uncaughtException', error => {
+  console.error('❌ Uncaught exception:', error);
+  process.exit(1);
 });
 
 client.on('messageCreate', async (message) => {
@@ -226,15 +246,50 @@ scheduleTimes.forEach(time => {
 });
 
 // Discordログイン
-client.login(TOKEN);
+console.log('🚀 Discord BOT起動中...');
+console.log(`🔑 TOKEN設定: ${TOKEN ? '設定済み' : '未設定'}`);
+console.log(`📢 CHANNEL_ID: ${CHANNEL_ID || '未設定'}`);
+
+client.login(TOKEN).then(() => {
+  console.log('✅ Discord login成功');
+}).catch(error => {
+  console.error('❌ Discord login失敗:', error);
+  process.exit(1);
+});
 
 // Renderのポート監視用サーバー
 const app = express();
+
 app.get('/', (req, res) => {
   const currentTime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-  res.send(`Bot is running!<br>現在の日本時間: ${currentTime}<br>リマインダー状態: ${reminderActive ? 'オン' : 'オフ'}`);
+  const botStatus = client.user ? `オンライン (${client.user.tag})` : 'オフライン';
+  
+  res.send(`
+    <h1>Discord Income Reminder Bot</h1>
+    <p><strong>BOT状態:</strong> ${botStatus}</p>
+    <p><strong>現在の日本時間:</strong> ${currentTime}</p>
+    <p><strong>リマインダー状態:</strong> ${reminderActive ? 'オン' : 'オフ'}</p>
+    <p><strong>送信禁止期間:</strong> ${isInRestrictedPeriod() ? 'Yes' : 'No'}</p>
+    <hr>
+    <p><strong>環境変数チェック:</strong></p>
+    <ul>
+      <li>DISCORD_TOKEN: ${process.env.DISCORD_TOKEN ? '設定済み' : '❌ 未設定'}</li>
+      <li>CHANNEL_ID: ${process.env.CHANNEL_ID || '❌ 未設定'}</li>
+      <li>PORT: ${process.env.PORT || '3000'}</li>
+    </ul>
+  `);
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log('Web server started to keep Render happy.');
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    botOnline: client.user ? true : false,
+    timestamp: new Date().toISOString()
+  });
+});
+
+const port = process.env.PORT || 3000;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🌐 Web server started on port ${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/health`);
 });
