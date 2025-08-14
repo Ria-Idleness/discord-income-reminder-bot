@@ -9,7 +9,7 @@ const CHANNEL_ID = process.env.CHANNEL_ID;
 const MENTION_ROLE_ID = '1399374765243891722'; // ロールID
 
 if (!TOKEN || !CHANNEL_ID) {
-  console.error('ERROR: DISCORD_TOKENとCHANNEL_IDを環境変数に設定してください');
+  console.error('❌ ERROR: DISCORD_TOKENとCHANNEL_IDを環境変数に設定してください');
   process.exit(1);
 }
 
@@ -23,9 +23,10 @@ const client = new Client({
 
 let reminderActive = false;
 
-// Discord起動時
+// Discord 起動時
 client.on('ready', () => {
-  console.log(`✅ Logged in as ${client.user.tag}!`);
+  console.log("🤖 BOTはreadyイベントを受信しました");
+  console.log(`✅ Logged in as ${client.user.tag}`);
   console.log(`🕒 現在の日本時間: ${new Date(Date.now()+9*60*60*1000).toLocaleString('ja-JP')}`);
 });
 
@@ -137,10 +138,14 @@ scheduleTimesUTC.forEach(time => {
   });
 });
 
-// Discordログイン（デバッグ付き）
+// デバッグ付き Discord ログイン
+console.log("🚀 BOT起動処理開始");
+if (!TOKEN) console.error("❌ DISCORD_TOKEN が未設定です");
+else console.log("🔑 DISCORD_TOKEN は設定済み");
+
 client.login(TOKEN)
-  .then(() => console.log('✅ Discord login成功'))
-  .catch(err => console.error('❌ Discord login失敗:', err));
+  .then(() => console.log("✅ Discord login成功"))
+  .catch(err => console.error("❌ Discord login失敗:", err));
 
 // Renderポート監視サーバー
 const app = express();
