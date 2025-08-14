@@ -1,15 +1,15 @@
 require('dotenv').config();
+
 const { Client, GatewayIntentBits } = require('discord.js');
 const cron = require('node-cron');
 const express = require('express');
 
-// 環境変数
 const TOKEN = process.env.DISCORD_TOKEN;
 const CHANNEL_ID = process.env.CHANNEL_ID;
-const MENTION_ROLE_ID = '1399374765243891722'; // ロールID
+const MENTION_ROLE_ID = process.env.MENTION_ROLE_ID || '1399374765243891722'; // ロールID
 
 if (!TOKEN || !CHANNEL_ID) {
-  console.error('❌ ERROR: DISCORD_TOKENとCHANNEL_IDを環境変数に設定してください');
+  console.error('ERROR: DISCORD_TOKENとCHANNEL_IDを環境変数に設定してください');
   process.exit(1);
 }
 
@@ -23,26 +23,19 @@ const client = new Client({
 
 let reminderActive = false;
 
-// Discord 起動時
 client.on('ready', () => {
-  console.log("🤖 BOTはreadyイベントを受信しました");
-  console.log(`✅ Logged in as ${client.user.tag}`);
-  console.log(`🕒 現在の日本時間: ${new Date(Date.now()+9*60*60*1000).toLocaleString('ja-JP')}`);
+  console.log(`✅ Logged in as ${client.user.tag}!`);
+  console.log(`🔧 BOT状態: オンライン`);
 });
 
-// エラーハンドリング
-client.on('error', console.error);
-client.on('warn', console.warn);
-process.on('unhandledRejection', console.error);
-process.on('uncaughtException', error => { console.error(error); process.exit(1); });
-
-// コマンド処理
+// ----------------------------------------
+// メッセージコマンド処理
+// ----------------------------------------
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (message.channel.id !== CHANNEL_ID) return;
 
   const content = message.content.trim();
-  const currentTime = new Date(Date.now()+9*60*60*1000).toLocaleString('ja-JP');
 
   if (content === '!income on') {
     reminderActive = true;
@@ -51,122 +44,108 @@ client.on('messageCreate', async (message) => {
     reminderActive = false;
     await message.reply('収入リマインダーをオフにしました！');
   } else if (content === '!income status') {
+    const currentTime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     await message.reply(`収入リマインダーは現在 **${reminderActive ? 'オン' : 'オフ'}** です。\n現在の日本時間: ${currentTime}`);
   } else if (content === '!income test') {
     await sendReminder(true);
   } else if (content === '!income schedule') {
+    const currentTime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     const restrictedStatus = isInRestrictedPeriod() ? '送信禁止期間中' : '送信可能';
-    await message.reply(`**スケジュール設定:**
-送信時刻: 0:50 / 4:50 / 8:50 / 12:50 / 16:50 / 20:50
-送信禁止: 月曜17:00～火曜17:00
-
-現在時刻: ${currentTime}
-現在の状態: ${restrictedStatus}`);
-  } else if (content === '!income next' || content === '!next') {
-    await message.reply(getTimeUntilNext());
+    await message.reply(`**スケジュール設定:**\n送信時刻: 0:50 / 4:50 / 8:50 / 12:50 / 16:50 / 20:50\n送信禁止: 月曜17:00～火曜17:00\n\n現在時刻: ${currentTime}\n現在の状態: ${restrictedStatus}`);
   }
 });
 
-// リマインダー送信
+// ----------------------------------------
+// 送信処理
+// ----------------------------------------
 async function sendReminder(force = false) {
   if (!reminderActive && !force) return;
 
   const channel = await client.channels.fetch(CHANNEL_ID).catch(() => null);
   if (!channel) return;
 
-  const currentTime = new Date(Date.now()+9*60*60*1000).toLocaleString('ja-JP');
-  console.log(`[${currentTime}] 収入リマインダー送信`);
-  
+  if (!force && isInRestrictedPeriod()) {
+    const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    console.log(`[${now}] 送信禁止期間中のためスキップ`);
+    return;
+  }
+
+  const nowJST = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+  console.log(`[${nowJST}] 収入リマインダーを送信中...`);
+
   await channel.send(`<@&${MENTION_ROLE_ID}> Collect income !\n収入を回収してください！`);
 }
 
-// 送信禁止期間チェック（JST）
+// ----------------------------------------
+// 送信禁止期間判定
+// 月曜17:00～火曜17:00 JST
+// ----------------------------------------
 function isInRestrictedPeriod() {
-  const nowJST = new Date(Date.now()+9*60*60*1000);
-  const day = nowJST.getDay();
-  const hour = nowJST.getHours();
+  const now = new Date();
+  const jstDate = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  const day = jstDate.getDay(); // 0=日曜, 1=月曜, ...
+  const hour = jstDate.getHours();
+
   return (day === 1 && hour >= 17) || (day === 2 && hour < 17);
 }
 
-// 次回通知時間計算
-function getNextNotificationTime() {
-  const nowJST = new Date(Date.now()+9*60*60*1000);
-  const times = [
-    {h:0, m:50}, {h:4, m:50}, {h:8, m:50},
-    {h:12, m:50}, {h:16, m:50}, {h:20, m:50}
-  ];
-  for (let dayOffset=0; dayOffset<7; dayOffset++) {
-    for (let t of times) {
-      const next = new Date(nowJST);
-      next.setDate(nowJST.getDate()+dayOffset);
-      next.setHours(t.h, t.m, 0, 0);
-      if (next > nowJST && !((next.getDay()===1 && t.h>=17)||(next.getDay()===2 && t.h<17))) {
-        return next;
-      }
-    }
-  }
-  return null;
-}
+// ----------------------------------------
+// cronスケジュール設定（UTC基準で日本時間に合わせる）
+// JST = UTC +9
+// JST 0:50 → UTC 15:50（前日）
+// JST 4:50 → UTC 19:50（前日）
+// JST 8:50 → UTC 23:50（前日）
+// JST 12:50 → UTC 3:50
+// JST 16:50 → UTC 7:50
+// JST 20:50 → UTC 11:50
+// ----------------------------------------
+const scheduleTimesUTC = ['50 15', '50 19', '50 23', '50 3', '50 7', '50 11'];
 
-// 次回通知までの時間文字列
-function getTimeUntilNext() {
-  const next = getNextNotificationTime();
-  if (!next) return "次回通知時間を計算できませんでした";
-  const nowJST = new Date(Date.now()+9*60*60*1000);
-  const diffMin = Math.floor((next-nowJST)/60000);
-  const h = Math.floor(diffMin/60);
-  const m = diffMin % 60;
-  const nowStr = nowJST.toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', weekday:'short' });
-  const nextStr = next.toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', weekday:'short' });
-  return h>0
-    ? `現在時刻: ${nowStr}\n次回通知まで **${h}時間${m}分** です\n次回通知時刻: ${nextStr}`
-    : `現在時刻: ${nowStr}\n次回通知まで **${m}分** です\n次回通知時刻: ${nextStr}`;
-}
-
-// JST通知時間 -> UTC変換cron
-const scheduleTimesUTC = ['50 15', '50 19', '50 23', '50 3', '50 7', '50 11']; // JST 0:50/4:50/8:50/12:50/16:50/20:50
 scheduleTimesUTC.forEach(time => {
   cron.schedule(`${time} * * *`, () => {
-    const nowJST = new Date(Date.now()+9*60*60*1000);
-    const dayNames = ['日','月','火','水','木','金','土'];
-    console.log(`[${nowJST.toLocaleString('ja-JP')}] Cron実行 - ${dayNames[nowJST.getDay()]}曜日`);
-    if (isInRestrictedPeriod()) {
-      console.log('送信禁止期間中のためスキップ');
-      return;
-    }
+    const jstNow = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    const jstDate = new Date(jstNow);
+    const day = jstDate.getDay();
+    const dayNames = ['日', '月', '火', '水', '木', '金', '土'];
+    console.log(`[${jstNow}] Cron実行 - ${dayNames[day]}曜日`);
+
     sendReminder();
+  }, {
+    scheduled: true,
+    timezone: 'UTC' // cron自体はUTC
   });
 });
 
-// デバッグ付き Discord ログイン
-console.log("🚀 BOT起動処理開始");
-if (!TOKEN) console.error("❌ DISCORD_TOKEN が未設定です");
-else console.log("🔑 DISCORD_TOKEN は設定済み");
+// ----------------------------------------
+// Discordログイン
+// ----------------------------------------
+client.login(TOKEN);
 
-client.login(TOKEN)
-  .then(() => console.log("✅ Discord login成功"))
-  .catch(err => console.error("❌ Discord login失敗:", err));
-
-// Renderポート監視サーバー
+// ----------------------------------------
+// Renderのポート監視用サーバー
+// ----------------------------------------
 const app = express();
-app.get('/', (req,res) => {
-  const nowJST = new Date(Date.now()+9*60*60*1000);
+app.get('/', (req, res) => {
+  const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
   const botStatus = client.user ? `オンライン (${client.user.tag})` : 'オフライン';
   res.send(`
     <h1>Discord Income Reminder Bot</h1>
     <p><strong>BOT状態:</strong> ${botStatus}</p>
-    <p><strong>現在の日本時間:</strong> ${nowJST.toLocaleString('ja-JP')}</p>
+    <p><strong>現在の日本時間:</strong> ${now}</p>
     <p><strong>リマインダー状態:</strong> ${reminderActive ? 'オン' : 'オフ'}</p>
     <p><strong>送信禁止期間:</strong> ${isInRestrictedPeriod() ? 'Yes' : 'No'}</p>
-    <hr>
-    <ul>
-      <li>DISCORD_TOKEN: ${TOKEN ? '設定済み' : '❌ 未設定'}</li>
-      <li>CHANNEL_ID: ${CHANNEL_ID ? '設定済み' : '❌ 未設定'}</li>
-      <li>PORT: ${process.env.PORT || 3000}</li>
-    </ul>
   `);
 });
-app.get('/health', (req,res) => res.status(200).json({status:'OK', botOnline: !!client.user, timestamp: new Date().toISOString()}));
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    botOnline: client.user ? true : false,
+    timestamp: new Date().toISOString()
+  });
+});
 
 const port = process.env.PORT || 3000;
-app.listen(port, '0.0.0.0', () => console.log(`🌐 Web server started on port ${port}`));
+app.listen(port, '0.0.0.0', () => {
+  console.log(`🌐 Web server started on port ${port}`);
+});
