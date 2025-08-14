@@ -50,7 +50,7 @@ async function sendReminder(force = false) {
     if (!reminderActive && !force) return;
 
     const now = new Date();
-    const day = now.getUTCDay(); // UTCベースで判定
+    const day = now.getUTCDay(); // UTCベース
     const hour = now.getUTCHours();
 
     // 月曜17:00～火曜17:00 JST (UTC 8:00～翌日8:00)は送信禁止
@@ -64,7 +64,7 @@ async function sendReminder(force = false) {
     await channel.send(`<@&${REMINDER_ROLE_ID}> Collect income!\n収入を回収してください！`);
 }
 
-// JST: 0:50 / 4:50 / 8:50 / 12:50 / 16:50 / 20:50 → UTC に変換して cron 設定
+// JST: 0:50 / 4:50 / 8:50 / 12:50 / 16:50 / 20:50 → UTC に変換
 const cronTimesUTC = ['50 15', '50 19', '50 23', '50 3', '50 7', '50 11'];
 
 cronTimesUTC.forEach(time => {
