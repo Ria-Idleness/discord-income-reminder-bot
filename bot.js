@@ -11,7 +11,7 @@ process.env.TZ = 'Asia/Tokyo';
 const token = process.env.DISCORD_TOKEN;
 const channelId = process.env.CHANNEL_ID;
 // --- 任意(推奨): ロールメンション用 ---
-const mentionRoleId = process.env.MENTION_ROLE_ID;
+const mentionRoleId = '1399374765243891722'; // ← ここだけ固定
 
 if (!token || !channelId) {
   console.error('ERROR: DISCORD_TOKEN と CHANNEL_ID を Render の環境変数に設定してください。');
@@ -66,7 +66,7 @@ async function sendReminder({ force = false } = {}) {
   }
 
   const mention = mentionRoleId ? `<@&${mentionRoleId}> ` : '';
-  await channel.send(`${mention}1399374765243891722Collect income !\n収入を回収してください！`);
+  await channel.send(`${mention}Collect income !\n収入を回収してください！`);
 }
 
 // 0:50 / 4:50 / 8:50 / 12:50 / 16:50 / 20:50（JST）
@@ -118,3 +118,4 @@ app.get('/', (_req, res) => res.send('Bot is running'));
 app.listen(process.env.PORT || 3000, () => console.log('Webサーバー起動'));
 
 client.login(token);
+cc
