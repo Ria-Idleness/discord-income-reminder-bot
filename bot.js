@@ -66,7 +66,7 @@ async function sendReminder({ force = false } = {}) {
   }
 
   const mention = mentionRoleId ? `<@&${mentionRoleId}> ` : '';
-  await channel.send(`${mention}Collect income !\n収入を回収してください！`);
+  await channel.send(`${mention}1399374765243891722Collect income !\n収入を回収してください！`);
 }
 
 // 0:50 / 4:50 / 8:50 / 12:50 / 16:50 / 20:50（JST）
