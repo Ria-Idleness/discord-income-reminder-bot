@@ -11,7 +11,7 @@ process.env.TZ = 'Asia/Tokyo';
 const token = process.env.DISCORD_TOKEN;
 const channelId = process.env.CHANNEL_ID;
 // --- 任意(推奨): ロールメンション用 ---
-const mentionRoleId = '1399374765243891722'; // ← ここだけ固定
+const mentionRoleId = 1399374765243891722
 
 if (!token || !channelId) {
   console.error('ERROR: DISCORD_TOKEN と CHANNEL_ID を Render の環境変数に設定してください。');
@@ -118,4 +118,3 @@ app.get('/', (_req, res) => res.send('Bot is running'));
 app.listen(process.env.PORT || 3000, () => console.log('Webサーバー起動'));
 
 client.login(token);
-cc
