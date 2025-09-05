@@ -9,7 +9,7 @@ process.env.TZ = 'Asia/Tokyo';
 const token = process.env.DISCORD_TOKEN;
 const channelId = process.env.CHANNEL_ID;
 // --- 任意(推奨): ロールメンション用 ---
-const mentionRoleId = '1399374765243891722';
+const mentionRoleId = '1365109317363044432';
 if (!token || !channelId) {
   console.error('ERROR: DISCORD_TOKEN と CHANNEL_ID を Render の環境変数に設定してください。');
   process.exit(1);
